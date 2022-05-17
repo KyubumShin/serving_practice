@@ -5,3 +5,6 @@ Streamlit
 
 ## Backend
 Fastapi
+
+## Model
+Mask2Former Swin Large

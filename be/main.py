@@ -1,38 +1,31 @@
-import torchvision.transforms as T
-import uvicorn
-from fastapi import FastAPI, UploadFile, File
-from torchvision import models
-from PIL import Image
 from io import BytesIO
+import pandas as pd
+import numpy as np
+from PIL import Image
+from fastapi import FastAPI, UploadFile, File, Response
+
+from model import get_model, predict_image
 
 app = FastAPI()
 
-
-transform = T.Compose([
-    T.Resize((224, 224)),
-    T.ToTensor()
-])
+model = get_model()
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
 
-
-def read_imagefile(file) -> Image.Image:
-    image = Image.open(BytesIO(file))
+def read_image_file(file) -> Image.Image:
+    image = Image.open(BytesIO(file)).convert("RGB")
     return image
 
 
-@app.post("/csf")
-async def classfication(file: UploadFile = File(...)):
-    image = read_imagefile(await file.read()).convert("RGB")
-    model = models.resnet34(pretrained=True)
-    input_image = transform(image)
-    pred = model(input_image.unsqueeze(0))
-    output = pred.argmax(dim=1)
-    return {'result': output.item()}
+@app.post('/seg')
+async def predict(file: UploadFile = File()):
+    image = read_image_file(await file.read())
+    mask = predict_image(model, image)
+    im = Image.fromarray(mask)
+    with BytesIO() as buf:
+        im.save(buf, format='PNG')
+        im_bytes = buf.getvalue()
 
+    headers = {'Content-Disposition': 'inline; filename="mask.png"'}
+    return Response(im_bytes, headers=headers, media_type='image/png')
 
-if __name__ == "__main__":
-    uvicorn.run(app, reload=True)
